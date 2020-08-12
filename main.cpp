@@ -14,6 +14,12 @@
 #include <pcl/filters/crop_box.h>
 #include <Eigen/Core>
 #include <exception>
+
+#include <pcl/sample_consensus/method_types.h>
+#include <pcl/sample_consensus/model_types.h>
+#include <pcl/segmentation/sac_segmentation.h>
+#include <pcl/filters/extract_indices.h>
+
 typedef pcl::PointXYZ PointType;
 
 using namespace std;
@@ -63,6 +69,38 @@ pcl::PointCloud<PointType>::Ptr cropBoxFilter(pcl::PointCloud<PointType>::Ptr cl
     cout << "Cloud size after crop box filter: " << cropBoxCloud->points.size() << "\n\n";
     return cropBoxCloud;
 }
+
+pair<typename pcl::PointCloud<PointType>::Ptr, typename pcl::PointCloud<PointType>::Ptr> RANSACsegmentation(pcl::PointCloud<PointType>::Ptr cloud)
+{
+    pcl::ModelCoefficients::Ptr coefficients(new pcl::ModelCoefficients());
+    pcl::PointIndices::Ptr inliers(new pcl::PointIndices());
+
+    cout << "Segmenting..." << endl;
+    pcl::SACSegmentation<PointType> seg;
+    seg.setOptimizeCoefficients(true);     // Enable model coefficient refinement (optional).
+    seg.setInputCloud(cloud);              //input
+    seg.setModelType(pcl::SACMODEL_PLANE); // Configure the object to look for a plane.
+    seg.setMethodType(pcl::SAC_RANSAC);    // Use RANSAC method.
+    seg.setMaxIterations(10000);            //Maximum number of executions
+    seg.setDistanceThreshold(0.1);        // Distance information to be processed as inlier // Set the maximum allowed distance to the model.
+    //seg.setRadiusLimits(0, 0.1);     // cylinder, Set minimum and maximum radii of the cylinder.
+    seg.segment(*inliers, *coefficients);
+
+    pcl::PointCloud<PointType>::Ptr plane(new pcl::PointCloud<PointType>),
+        objects(new pcl::PointCloud<PointType>);
+    pcl::copyPointCloud<PointType>(*cloud, *inliers, *plane);
+
+    pcl::ExtractIndices<PointType> extract;
+    extract.setInputCloud(cloud);
+    extract.setIndices(inliers);
+    extract.setNegative(true); //false
+    extract.filter(*objects);
+    cout<<"Objects cloud size: "<<objects->points.size()<<endl;
+    cout<<"Plane cloud size: "<<plane->points.size()<<endl;
+    pair<typename pcl::PointCloud<PointType>::Ptr, typename pcl::PointCloud<PointType>::Ptr> segResult(plane,objects);
+    return segResult;
+}
+
 int main(int argc, char **argv)
 {
     try
@@ -112,15 +150,22 @@ int main(int argc, char **argv)
     pcl::PointCloud<PointType>::Ptr voxelCloud = voxelFilter(cloud);
     //Crop box filter
     pcl::PointCloud<PointType>::Ptr cropBoxCloud = cropBoxFilter(voxelCloud);
+    //RANSAC segmentation
+    pair<typename pcl::PointCloud<PointType>::Ptr, typename pcl::PointCloud<PointType>::Ptr> planeAndObjects = RANSACsegmentation(cropBoxCloud);
+    pcl::PointCloud<PointType>::Ptr plane = planeAndObjects.first;
+    pcl::PointCloud<PointType>::Ptr objects = planeAndObjects.second;
+
 
     //Visualization
     cout << "Visualizing ...\n";
-    pcl::visualization::PCLVisualizer::Ptr viewer = viewPointCloud(cloud, "Original Point Cloud");
-    pcl::visualization::PCLVisualizer::Ptr viewer2 = viewPointCloud(voxelCloud, "Voxel Filter");
+   // pcl::visualization::PCLVisualizer::Ptr viewer = viewPointCloud(cloud, "Original Point Cloud");
+   // pcl::visualization::PCLVisualizer::Ptr viewer2 = viewPointCloud(voxelCloud, "Voxel Filter");
     pcl::visualization::PCLVisualizer::Ptr viewer3 = viewPointCloud(cropBoxCloud, "Crop Box Filter");
-    while (!viewer->wasStopped())
+    pcl::visualization::PCLVisualizer::Ptr viewer4 = viewPointCloud(plane, "Plane");
+    pcl::visualization::PCLVisualizer::Ptr viewer5 = viewPointCloud(objects, "Objects");
+    while (!viewer3->wasStopped())
     {
-        viewer->spinOnce();
+        viewer3->spinOnce();
     }
     cout << "\nDone visualizing\n\n";
 
