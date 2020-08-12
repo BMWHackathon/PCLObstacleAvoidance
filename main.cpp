@@ -19,6 +19,7 @@
 #include <pcl/sample_consensus/model_types.h>
 #include <pcl/segmentation/sac_segmentation.h>
 #include <pcl/filters/extract_indices.h>
+#include <pcl/filters/statistical_outlier_removal.h>
 
 typedef pcl::PointXYZ PointType;
 
@@ -26,8 +27,8 @@ using namespace std;
 
 //  Parameters
 
-float voxelLeafSize;
-float point1, point2;
+float voxelLeafSize;  //0.2
+float point1, point2; //-14   14
 Eigen::Vector4f cropBoxMinPoint;
 Eigen::Vector4f cropBoxMaxPoint;
 
@@ -81,8 +82,8 @@ pair<typename pcl::PointCloud<PointType>::Ptr, typename pcl::PointCloud<PointTyp
     seg.setInputCloud(cloud);              //input
     seg.setModelType(pcl::SACMODEL_PLANE); // Configure the object to look for a plane.
     seg.setMethodType(pcl::SAC_RANSAC);    // Use RANSAC method.
-    seg.setMaxIterations(10000);            //Maximum number of executions
-    seg.setDistanceThreshold(0.1);        // Distance information to be processed as inlier // Set the maximum allowed distance to the model.
+    seg.setMaxIterations(10000);           //Maximum number of executions
+    seg.setDistanceThreshold(0.1);         // Distance information to be processed as inlier // Set the maximum allowed distance to the model.
     //seg.setRadiusLimits(0, 0.1);     // cylinder, Set minimum and maximum radii of the cylinder.
     seg.segment(*inliers, *coefficients);
 
@@ -95,12 +96,24 @@ pair<typename pcl::PointCloud<PointType>::Ptr, typename pcl::PointCloud<PointTyp
     extract.setIndices(inliers);
     extract.setNegative(true); //false
     extract.filter(*objects);
-    cout<<"Objects cloud size: "<<objects->points.size()<<endl;
-    cout<<"Plane cloud size: "<<plane->points.size()<<endl;
-    pair<typename pcl::PointCloud<PointType>::Ptr, typename pcl::PointCloud<PointType>::Ptr> segResult(plane,objects);
+    cout << "Objects cloud size: " << objects->points.size() << endl;
+    cout << "Plane cloud size: " << plane->points.size() << endl;
+    pair<typename pcl::PointCloud<PointType>::Ptr, typename pcl::PointCloud<PointType>::Ptr> segResult(plane, objects);
     return segResult;
 }
 
+pcl::PointCloud<PointType>::Ptr noiseRemoval(pcl::PointCloud<PointType>::Ptr cloud)
+{
+    cout << "Objects size before noise removal: " << cloud->points.size() << endl;
+    pcl::StatisticalOutlierRemoval<PointType> sor;
+    pcl::PointCloud<PointType>::Ptr noiseFreeObjects(new pcl::PointCloud<PointType>);
+    sor.setInputCloud(cloud);      //input
+    sor.setMeanK(50);              //Neighboring points considered during analysis (50)
+    sor.setStddevMulThresh(1.0);   // Distance information to be processed by outlier
+    sor.filter(*noiseFreeObjects); // Apply filter
+    cout << "Objects size after noise removal: " << noiseFreeObjects->points.size() << endl;
+    return noiseFreeObjects;
+}
 int main(int argc, char **argv)
 {
     try
@@ -154,15 +167,16 @@ int main(int argc, char **argv)
     pair<typename pcl::PointCloud<PointType>::Ptr, typename pcl::PointCloud<PointType>::Ptr> planeAndObjects = RANSACsegmentation(cropBoxCloud);
     pcl::PointCloud<PointType>::Ptr plane = planeAndObjects.first;
     pcl::PointCloud<PointType>::Ptr objects = planeAndObjects.second;
-
-
+    //Removing Noise from objects
+    pcl::PointCloud<PointType>::Ptr noiseFreeobjects = noiseRemoval(objects);
     //Visualization
-    cout << "Visualizing ...\n";
-   // pcl::visualization::PCLVisualizer::Ptr viewer = viewPointCloud(cloud, "Original Point Cloud");
-   // pcl::visualization::PCLVisualizer::Ptr viewer2 = viewPointCloud(voxelCloud, "Voxel Filter");
+    cout << "\nVisualizing ...\n";
+    // pcl::visualization::PCLVisualizer::Ptr viewer = viewPointCloud(cloud, "Original Point Cloud");
+    // pcl::visualization::PCLVisualizer::Ptr viewer2 = viewPointCloud(voxelCloud, "Voxel Filter");
     pcl::visualization::PCLVisualizer::Ptr viewer3 = viewPointCloud(cropBoxCloud, "Crop Box Filter");
     pcl::visualization::PCLVisualizer::Ptr viewer4 = viewPointCloud(plane, "Plane");
     pcl::visualization::PCLVisualizer::Ptr viewer5 = viewPointCloud(objects, "Objects");
+    pcl::visualization::PCLVisualizer::Ptr viewer6 = viewPointCloud(noiseFreeobjects, "Noise free Objects");
     while (!viewer3->wasStopped())
     {
         viewer3->spinOnce();
