@@ -265,6 +265,8 @@ int main(int argc, char **argv)
 
     //Create bounding rectangles for clusters
     createBoundingBoxes(clusters, viewer6);
+    //Set camera position
+    viewer6->setCameraPosition(-30,0,10, 0,0,0 ,0,0,1);
 
     while (!viewer3->wasStopped())
     {
