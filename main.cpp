@@ -3,6 +3,8 @@
 
 
 */
+#include <boost/filesystem.hpp>
+
 #include <iostream>
 #include <string>
 #include <pcl/common/common_headers.h>
@@ -24,20 +26,24 @@
 #include <pcl/kdtree/kdtree.h>
 #include <pcl/segmentation/extract_clusters.h>
 
+#include <chrono>
+
 typedef pcl::PointXYZ PointType;
 
+using namespace boost::filesystem;
 using namespace std;
 
 //  Parameters
 
-float voxelLeafSize;                                        //0.2
-float point1x, point1y, point1z, point2x, point2y, point2z; //-11 -6 -11    19 7 19
-Eigen::Vector4f cropBoxMinPoint;
-Eigen::Vector4f cropBoxMaxPoint;
-
+float voxelLeafSize = 0.25;                                                                 //0.2
+float point1x = -11, point1y = -6, point1z = -11, point2x = 19, point2y = 7, point2z = 19; //-11 -6 -11    19 7 19
+Eigen::Vector4f cropBoxMinPoint = Eigen::Vector4f(point1x, point1y, point1z, 1);
+Eigen::Vector4f cropBoxMaxPoint = Eigen::Vector4f(point2x, point2y, point2z, 1);
+int frame = 1;
+bool dev = false;
 //
 
-pcl::visualization::PCLVisualizer::Ptr viewPointCloud(pcl::PointCloud<PointType>::Ptr cloud, string title,Eigen::Vector3f color)
+pcl::visualization::PCLVisualizer::Ptr viewPointCloud(pcl::PointCloud<PointType>::Ptr cloud, string title, Eigen::Vector3f color)
 {
 
     pcl::visualization::PCLVisualizer::Ptr viewer(new pcl::visualization::PCLVisualizer(title));
@@ -192,97 +198,157 @@ void createBoundingBoxes(vector<pcl::PointCloud<PointType>::Ptr> clusters, pcl::
 
     //return viewer;
 }
+
 int main(int argc, char **argv)
 {
-    try
+    cout << "Select the mode: (1) Dev (Work with one frame only), (2) Entire sequence: ";
+    int mode;
+    cin >> mode;
+    if (mode == 2)
     {
-        stringstream convert{argv[2]};
-        convert >> voxelLeafSize;
-
-        stringstream convert1x{argv[3]};
-        convert1x >> point1x;
-        stringstream convert1y{argv[4]};
-        convert1y >> point1y;
-        stringstream convert1z{argv[5]};
-        convert1z >> point1z;
-        cropBoxMinPoint = Eigen::Vector4f(point1x, point1y, point1z, 1);
-
-        stringstream convert2x{argv[6]};
-        convert2x >> point2x;
-        stringstream convert2y{argv[7]};
-        convert2y >> point2y;
-        stringstream convert2z{argv[8]};
-        convert2z >> point2z;
-        cropBoxMaxPoint = Eigen::Vector4f(point2x, point2y, point2z, 1);
-    }
-    catch (exception &e)
-    {
-        cerr << "Wrong CL arguments. Terminating.";
-        return -1;
+        dev = false;
     }
 
-    cout << "Launching program...\n\n";
-    //Reading the pcd file
+    cout << "\n\nLaunching program...\n\n";
     pcl::PointCloud<PointType>::Ptr cloud(new pcl::PointCloud<PointType>());
-    vector<int> pcd_filename_indices = pcl::console::parse_file_extension_argument(argc, argv, "pcd");
-    if (!pcd_filename_indices.empty())
+    pcl::visualization::PCLVisualizer::Ptr viewer(new pcl::visualization::PCLVisualizer("Scene"));
+    if (dev)
     {
-        cout << "Loading file..." << endl;
-        string filename = argv[pcd_filename_indices[0]];
-        if (pcl::io::loadPCDFile(filename, *cloud) == -1)
+        try
         {
-            cerr << "Was not able to open file \"" << filename << "\".\n";
+            stringstream convert{argv[2]};
+            convert >> voxelLeafSize;
 
+            stringstream convert1x{argv[3]};
+            convert1x >> point1x;
+            stringstream convert1y{argv[4]};
+            convert1y >> point1y;
+            stringstream convert1z{argv[5]};
+            convert1z >> point1z;
+            cropBoxMinPoint = Eigen::Vector4f(point1x, point1y, point1z, 1);
+
+            stringstream convert2x{argv[6]};
+            convert2x >> point2x;
+            stringstream convert2y{argv[7]};
+            convert2y >> point2y;
+            stringstream convert2z{argv[8]};
+            convert2z >> point2z;
+            cropBoxMaxPoint = Eigen::Vector4f(point2x, point2y, point2z, 1);
+        }
+        catch (exception &e)
+        {
+            cerr << "Wrong CL arguments. Terminating.";
             return -1;
         }
-    }
-    else
+
+        //Reading the pcd file
+
+        vector<int> pcd_filename_indices = pcl::console::parse_file_extension_argument(argc, argv, "pcd");
+        if (!pcd_filename_indices.empty())
+        {
+            cout << "Loading file..." << endl;
+            string filename = argv[pcd_filename_indices[0]];
+            if (pcl::io::loadPCDFile(filename, *cloud) == -1)
+            {
+                cerr << "Was not able to open file \"" << filename << "\".\n";
+
+                return -1;
+            }
+        }
+        else
+        {
+            cerr << "Need to provide the pcd directory" << endl;
+            return -1;
+        }
+
+    } //End if dev
+
+    path p("../../resources/data_1");
+    cout << "Getting files: " << endl;
+    vector<string> files;
+    for (auto i = directory_iterator(p); i != directory_iterator(); i++)
     {
-        cerr << "Need to provide the pcd directory" << endl;
-        return -1;
+        if (!is_directory(i->path())) //we eliminate directories
+        {
+            files.push_back(i->path().filename().string());
+        }
+        else
+            continue;
     }
-    cout << "Cloud loaded, size: " << cloud->points.size() << endl;
+    cout << "Files ready\n";
+    sort(files.begin(), files.end());
 
-    //Maybe check if XYZRGB and turn it into XYZ
+    //Listing file names:
+    // for(size_t i = 1;i<files.size();i++){
+    //     cout<<files[i]<<endl;
+    // }
 
-    //Starting the process
-
-    //Voxel filter
-    pcl::PointCloud<PointType>::Ptr voxelCloud = voxelFilter(cloud);
-    //Crop box filter
-    pcl::PointCloud<PointType>::Ptr cropBoxCloud = cropBoxFilter(voxelCloud);
-    //RANSAC segmentation
-    pair<typename pcl::PointCloud<PointType>::Ptr, typename pcl::PointCloud<PointType>::Ptr> planeAndObjects = RANSACsegmentation(cropBoxCloud);
-    pcl::PointCloud<PointType>::Ptr plane = planeAndObjects.first;
-    pcl::PointCloud<PointType>::Ptr objects = planeAndObjects.second;
-    //Removing Noise from objects
-    pcl::PointCloud<PointType>::Ptr noiseFreeobjects = noiseRemoval(objects);
-    //Cluster Cars
-    vector<pcl::PointCloud<PointType>::Ptr> clusters = extractClusters(noiseFreeobjects);
-
-    //Visualization
-    cout << "\nVisualizing ...\n";
-    Eigen::Vector3f color0 (0,0,0);
-    // pcl::visualization::PCLVisualizer::Ptr viewer1 = viewPointCloud(cloud, "Original Point Cloud");
-    // pcl::visualization::PCLVisualizer::Ptr viewer2 = viewPointCloud(voxelCloud, "Voxel Filter");
-    // pcl::visualization::PCLVisualizer::Ptr viewer3 = viewPointCloud(cropBoxCloud, "Crop Box Filter",color0);
-    // pcl::visualization::PCLVisualizer::Ptr viewer4 = viewPointCloud(plane, "Plane",color0);
-    // pcl::visualization::PCLVisualizer::Ptr viewer5 = viewPointCloud(objects, "Objects",color0);
-
-    Eigen::Vector3f color1(0,0,1);
-    pcl::visualization::PCLVisualizer::Ptr viewer = viewPointCloud(noiseFreeobjects, "Objects",color1);
-
-    //Create bounding rectangles for clusters
-    createBoundingBoxes(clusters, viewer);
-    //Set camera position
-    viewer->setCameraPosition(-30, 0, 10, 0, 0, 0, 0, 0, 1);
-    Eigen::Vector3f color2(0,1,0);
-    addPointCloudToViewer(viewer,plane,"road",color2);
-   
-    while (!viewer->wasStopped())
+    //Core of the program:
+    for (size_t i = 1; i < files.size(); i++)
     {
-        viewer->spinOnce();
-    }
+
+        pcl::io::loadPCDFile(("../../resources/data_1/" + files[i]), *cloud);
+
+        cout << "\n\nCloud loaded, size: " << cloud->points.size() << endl;
+
+        //Maybe check if XYZRGB and turn it into XYZ
+
+        //Starting the process
+        std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
+
+        //Crop box filter
+        pcl::PointCloud<PointType>::Ptr cropBoxCloud = cropBoxFilter(cloud);
+        //Voxel filter
+        pcl::PointCloud<PointType>::Ptr voxelCloud = voxelFilter(cropBoxCloud);
+
+        //RANSAC segmentation
+        pair<typename pcl::PointCloud<PointType>::Ptr, typename pcl::PointCloud<PointType>::Ptr> planeAndObjects = RANSACsegmentation(voxelCloud);
+        pcl::PointCloud<PointType>::Ptr plane = planeAndObjects.first;
+        pcl::PointCloud<PointType>::Ptr objects = planeAndObjects.second;
+        //Removing Noise from objects
+        pcl::PointCloud<PointType>::Ptr noiseFreeobjects = noiseRemoval(objects);
+        //Cluster Cars
+        vector<pcl::PointCloud<PointType>::Ptr> clusters = extractClusters(noiseFreeobjects);
+
+        //Visualization
+        cout << "\nVisualizing frame " << frame << " ...\n";
+        Eigen::Vector3f color0(0, 0, 0);
+        // pcl::visualization::PCLVisualizer::Ptr viewer1 = viewPointCloud(cloud, "Original Point Cloud");
+        // pcl::visualization::PCLVisualizer::Ptr viewer2 = viewPointCloud(voxelCloud, "Voxel Filter");
+        // pcl::visualization::PCLVisualizer::Ptr viewer3 = viewPointCloud(cropBoxCloud, "Crop Box Filter",color0);
+        // pcl::visualization::PCLVisualizer::Ptr viewer4 = viewPointCloud(plane, "Plane",color0);
+        // pcl::visualization::PCLVisualizer::Ptr viewer5 = viewPointCloud(objects, "Objects",color0);
+
+        viewer->setBackgroundColor(0, 0, 0);
+        //Create bounding rectangles for clusters
+        createBoundingBoxes(clusters, viewer);
+        //Set camera position
+        viewer->setCameraPosition(-30, 0, 10, 0, 0, 0, 0, 0, 1);
+
+        Eigen::Vector3f color1(0, 0, 1);
+        Eigen::Vector3f color2(0, 1, 0);
+
+        addPointCloudToViewer(viewer, noiseFreeobjects, "Objects", color1);
+        addPointCloudToViewer(viewer, plane, "road", color2);
+
+        // while(viewer->wasStopped()){
+        //     viewer->spinOnce(1);
+        // }
+
+        std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
+        cout << "Processing duration: " << std::chrono::duration_cast<std::chrono::microseconds>(end - begin).count() << "[µs]" << std::endl;
+        //Earch frame will last for this amount of ms
+        viewer->spinOnce(4000);
+
+        // Clear the viewer
+        viewer->removeAllPointClouds();
+        viewer->removeAllShapes();
+
+        //Increment the frame number
+        frame++;
+
+    } //end main loop
+
     cout << "\nDone visualizing\n\n";
 
     cout << "Program ended" << endl;

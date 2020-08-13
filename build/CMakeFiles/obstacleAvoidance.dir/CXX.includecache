@@ -7,6 +7,8 @@
 #IncludeRegexTransform: 
 
 /home/charbel/Projects/PCLprojects/obstacleAvoidance/main.cpp
+boost/filesystem.hpp
+-
 iostream
 -
 string
@@ -40,6 +42,8 @@ pcl/filters/statistical_outlier_removal.h
 pcl/kdtree/kdtree.h
 -
 pcl/segmentation/extract_clusters.h
+-
+chrono
 -
 
 /usr/include/eigen3/Eigen/Cholesky
