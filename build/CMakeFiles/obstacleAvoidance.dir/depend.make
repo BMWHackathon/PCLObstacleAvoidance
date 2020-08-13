@@ -364,6 +364,8 @@ CMakeFiles/obstacleAvoidance.dir/main.cpp.o: /usr/local/include/pcl-1.8/pcl/sear
 CMakeFiles/obstacleAvoidance.dir/main.cpp.o: /usr/local/include/pcl-1.8/pcl/search/organized.h
 CMakeFiles/obstacleAvoidance.dir/main.cpp.o: /usr/local/include/pcl-1.8/pcl/search/pcl_search.h
 CMakeFiles/obstacleAvoidance.dir/main.cpp.o: /usr/local/include/pcl-1.8/pcl/search/search.h
+CMakeFiles/obstacleAvoidance.dir/main.cpp.o: /usr/local/include/pcl-1.8/pcl/segmentation/extract_clusters.h
+CMakeFiles/obstacleAvoidance.dir/main.cpp.o: /usr/local/include/pcl-1.8/pcl/segmentation/impl/extract_clusters.hpp
 CMakeFiles/obstacleAvoidance.dir/main.cpp.o: /usr/local/include/pcl-1.8/pcl/segmentation/impl/sac_segmentation.hpp
 CMakeFiles/obstacleAvoidance.dir/main.cpp.o: /usr/local/include/pcl-1.8/pcl/segmentation/sac_segmentation.h
 CMakeFiles/obstacleAvoidance.dir/main.cpp.o: /usr/local/include/pcl-1.8/pcl/visualization/area_picking_event.h

@@ -21,14 +21,17 @@
 #include <pcl/filters/extract_indices.h>
 #include <pcl/filters/statistical_outlier_removal.h>
 
+#include <pcl/kdtree/kdtree.h>
+#include <pcl/segmentation/extract_clusters.h>
+
 typedef pcl::PointXYZ PointType;
 
 using namespace std;
 
 //  Parameters
 
-float voxelLeafSize;  //0.2
-float point1x, point1y,point1z,point2x, point2y,point2z; //-11 -6 -11    19 7 19
+float voxelLeafSize;                                        //0.2
+float point1x, point1y, point1z, point2x, point2y, point2z; //-11 -6 -11    19 7 19
 Eigen::Vector4f cropBoxMinPoint;
 Eigen::Vector4f cropBoxMaxPoint;
 
@@ -39,9 +42,10 @@ pcl::visualization::PCLVisualizer::Ptr viewPointCloud(pcl::PointCloud<PointType>
 
     pcl::visualization::PCLVisualizer::Ptr viewer(new pcl::visualization::PCLVisualizer(title));
     viewer->setBackgroundColor(0, 0, 0);
+    
     //viewer->setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 3, "sample cloud");
     //viewer->addCoordinateSystem (1.0, "global");
-    //viewer->initCameraParameters ();
+    //viewer->initCameraParameters();
     viewer->addPointCloud<PointType>(cloud);
     return viewer;
 }
@@ -114,6 +118,74 @@ pcl::PointCloud<PointType>::Ptr noiseRemoval(pcl::PointCloud<PointType>::Ptr clo
     cout << "Objects size after noise removal: " << noiseFreeObjects->points.size() << endl;
     return noiseFreeObjects;
 }
+
+vector<pcl::PointCloud<PointType>::Ptr> extractClusters(pcl::PointCloud<PointType>::Ptr cloud)
+{
+
+    cout << "\nExtracting clusters...\n";
+    pcl::search::KdTree<PointType>::Ptr tree(new pcl::search::KdTree<PointType>);
+    tree->setInputCloud(cloud);
+
+    vector<pcl::PointIndices> cluster_indices;
+    pcl::EuclideanClusterExtraction<PointType> ec;
+    ec.setClusterTolerance(0.8); 
+    ec.setMinClusterSize(30);
+    ec.setMaxClusterSize(125000);
+    ec.setSearchMethod(tree);
+    ec.setInputCloud(cloud);
+    ec.extract(cluster_indices);
+
+    vector<pcl::PointCloud<PointType>::Ptr> clusters;
+    int j = 0;
+    for (vector<pcl::PointIndices>::const_iterator it = cluster_indices.begin(); it != cluster_indices.end(); ++it)
+    {
+        pcl::PointCloud<PointType>::Ptr cloud_cluster(new pcl::PointCloud<PointType>);
+        for (vector<int>::const_iterator pit = it->indices.begin(); pit != it->indices.end(); ++pit)
+            cloud_cluster->points.push_back(cloud->points[*pit]); //*
+        cout << "Cluster " << (j + 1) << " size: " << cloud_cluster->points.size() << endl;
+        cloud_cluster->width = cloud_cluster->points.size();
+        cloud_cluster->height = 1;
+        cloud_cluster->is_dense = true;
+
+        clusters.push_back(cloud_cluster);
+        //View clusters: 
+        // pcl::visualization::PCLVisualizer viewer("PCL Viewer");
+        // viewer.addPointCloud<pcl::PointXYZ>(cloud_cluster);
+        // while (!viewer.wasStopped())
+        // {
+        //     viewer.spinOnce();
+        // }
+        j++;
+    }
+    cout << "\n"
+         << j << " clusters extracted" << endl;
+
+    return clusters;
+}
+
+void createBoundingBoxes(vector<pcl::PointCloud<PointType>::Ptr> clusters, pcl::visualization::PCLVisualizer::Ptr viewer)
+{
+    cout << "\nCreating bounding rectangles for clusters...\n";
+    for (size_t i = 0; i < clusters.size(); i++)
+    {
+        PointType minPoint, maxPoint;
+        pcl::getMinMax3D(*(clusters[i]), minPoint, maxPoint);
+     
+        string id = "Cluster " + (i + 1);
+        
+        viewer->addCube(minPoint.x, maxPoint.x, minPoint.y, maxPoint.y, minPoint.z, maxPoint.z, 1.0, 0, 0, id);
+        viewer->setShapeRenderingProperties(pcl::visualization::PCL_VISUALIZER_REPRESENTATION, pcl::visualization::PCL_VISUALIZER_REPRESENTATION_WIREFRAME, id);
+        // viewer->setShapeRenderingProperties(pcl::visualization::PCL_VISUALIZER_COLOR, 1.0, 0, 0, id);
+        viewer->setShapeRenderingProperties(pcl::visualization::PCL_VISUALIZER_OPACITY, 1.0, id);
+        string idFill = "Cluster Fill " + (i + 1);
+        viewer->addCube(minPoint.x, maxPoint.x, minPoint.y, maxPoint.y, minPoint.z, maxPoint.z, 1.0, 0, 0, idFill);
+        viewer->setShapeRenderingProperties(pcl::visualization::PCL_VISUALIZER_REPRESENTATION, pcl::visualization::PCL_VISUALIZER_REPRESENTATION_SURFACE, idFill);
+        //viewer->setShapeRenderingProperties(pcl::visualization::PCL_VISUALIZER_COLOR, 1.0, 0, 0, idFill);
+        viewer->setShapeRenderingProperties(pcl::visualization::PCL_VISUALIZER_OPACITY, 0.3, idFill);
+    }
+
+    //return viewer;
+}
 int main(int argc, char **argv)
 {
     try
@@ -136,7 +208,6 @@ int main(int argc, char **argv)
         stringstream convert2z{argv[8]};
         convert2z >> point2z;
         cropBoxMaxPoint = Eigen::Vector4f(point2x, point2y, point2z, 1);
-     
     }
     catch (exception &e)
     {
@@ -180,6 +251,9 @@ int main(int argc, char **argv)
     pcl::PointCloud<PointType>::Ptr objects = planeAndObjects.second;
     //Removing Noise from objects
     pcl::PointCloud<PointType>::Ptr noiseFreeobjects = noiseRemoval(objects);
+    //Cluster Cars
+    vector<pcl::PointCloud<PointType>::Ptr> clusters = extractClusters(noiseFreeobjects);
+
     //Visualization
     cout << "\nVisualizing ...\n";
     // pcl::visualization::PCLVisualizer::Ptr viewer = viewPointCloud(cloud, "Original Point Cloud");
@@ -188,6 +262,10 @@ int main(int argc, char **argv)
     pcl::visualization::PCLVisualizer::Ptr viewer4 = viewPointCloud(plane, "Plane");
     pcl::visualization::PCLVisualizer::Ptr viewer5 = viewPointCloud(objects, "Objects");
     pcl::visualization::PCLVisualizer::Ptr viewer6 = viewPointCloud(noiseFreeobjects, "Noise free Objects");
+
+    //Create bounding rectangles for clusters
+    createBoundingBoxes(clusters, viewer6);
+
     while (!viewer3->wasStopped())
     {
         viewer3->spinOnce();
