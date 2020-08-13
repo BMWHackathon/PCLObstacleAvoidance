@@ -28,7 +28,7 @@ using namespace std;
 //  Parameters
 
 float voxelLeafSize;  //0.2
-float point1, point2; //-14   14
+float point1x, point1y,point1z,point2x, point2y,point2z; //-11 -6 -11    19 7 19
 Eigen::Vector4f cropBoxMinPoint;
 Eigen::Vector4f cropBoxMaxPoint;
 
@@ -120,12 +120,23 @@ int main(int argc, char **argv)
     {
         stringstream convert{argv[2]};
         convert >> voxelLeafSize;
-        stringstream convert1{argv[3]};
-        convert1 >> point1;
-        cropBoxMinPoint = Eigen::Vector4f(point1, point1, point1, 1);
-        stringstream convert2{argv[4]};
-        convert2 >> point2;
-        cropBoxMaxPoint = Eigen::Vector4f(point2, point2, point2, 1);
+
+        stringstream convert1x{argv[3]};
+        convert1x >> point1x;
+        stringstream convert1y{argv[4]};
+        convert1y >> point1y;
+        stringstream convert1z{argv[5]};
+        convert1z >> point1z;
+        cropBoxMinPoint = Eigen::Vector4f(point1x, point1y, point1z, 1);
+
+        stringstream convert2x{argv[6]};
+        convert2x >> point2x;
+        stringstream convert2y{argv[7]};
+        convert2y >> point2y;
+        stringstream convert2z{argv[8]};
+        convert2z >> point2z;
+        cropBoxMaxPoint = Eigen::Vector4f(point2x, point2y, point2z, 1);
+     
     }
     catch (exception &e)
     {
