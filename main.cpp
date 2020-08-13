@@ -37,17 +37,23 @@ Eigen::Vector4f cropBoxMaxPoint;
 
 //
 
-pcl::visualization::PCLVisualizer::Ptr viewPointCloud(pcl::PointCloud<PointType>::Ptr cloud, string title)
+pcl::visualization::PCLVisualizer::Ptr viewPointCloud(pcl::PointCloud<PointType>::Ptr cloud, string title,Eigen::Vector3f color)
 {
 
     pcl::visualization::PCLVisualizer::Ptr viewer(new pcl::visualization::PCLVisualizer(title));
     viewer->setBackgroundColor(0, 0, 0);
-    
     //viewer->setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 3, "sample cloud");
     //viewer->addCoordinateSystem (1.0, "global");
     //viewer->initCameraParameters();
-    viewer->addPointCloud<PointType>(cloud);
+    viewer->addPointCloud<PointType>(cloud, title);
+    viewer->setPointCloudRenderingProperties(pcl::visualization::PCL_VISUALIZER_COLOR, color[0], color[1], color[2], title);
     return viewer;
+}
+
+void addPointCloudToViewer(pcl::visualization::PCLVisualizer::Ptr viewer, pcl::PointCloud<PointType>::Ptr cloud, string id, Eigen::Vector3f color)
+{
+    viewer->addPointCloud<PointType>(cloud, id);
+    viewer->setPointCloudRenderingProperties(pcl::visualization::PCL_VISUALIZER_COLOR, color[0], color[1], color[2], id);
 }
 
 pcl::PointCloud<PointType>::Ptr voxelFilter(pcl::PointCloud<PointType>::Ptr cloud)
@@ -128,7 +134,7 @@ vector<pcl::PointCloud<PointType>::Ptr> extractClusters(pcl::PointCloud<PointTyp
 
     vector<pcl::PointIndices> cluster_indices;
     pcl::EuclideanClusterExtraction<PointType> ec;
-    ec.setClusterTolerance(0.8); 
+    ec.setClusterTolerance(0.8);
     ec.setMinClusterSize(30);
     ec.setMaxClusterSize(125000);
     ec.setSearchMethod(tree);
@@ -148,7 +154,7 @@ vector<pcl::PointCloud<PointType>::Ptr> extractClusters(pcl::PointCloud<PointTyp
         cloud_cluster->is_dense = true;
 
         clusters.push_back(cloud_cluster);
-        //View clusters: 
+        //View clusters:
         // pcl::visualization::PCLVisualizer viewer("PCL Viewer");
         // viewer.addPointCloud<pcl::PointXYZ>(cloud_cluster);
         // while (!viewer.wasStopped())
@@ -170,9 +176,9 @@ void createBoundingBoxes(vector<pcl::PointCloud<PointType>::Ptr> clusters, pcl::
     {
         PointType minPoint, maxPoint;
         pcl::getMinMax3D(*(clusters[i]), minPoint, maxPoint);
-     
+
         string id = "Cluster " + (i + 1);
-        
+
         viewer->addCube(minPoint.x, maxPoint.x, minPoint.y, maxPoint.y, minPoint.z, maxPoint.z, 1.0, 0, 0, id);
         viewer->setShapeRenderingProperties(pcl::visualization::PCL_VISUALIZER_REPRESENTATION, pcl::visualization::PCL_VISUALIZER_REPRESENTATION_WIREFRAME, id);
         // viewer->setShapeRenderingProperties(pcl::visualization::PCL_VISUALIZER_COLOR, 1.0, 0, 0, id);
@@ -256,21 +262,26 @@ int main(int argc, char **argv)
 
     //Visualization
     cout << "\nVisualizing ...\n";
-    // pcl::visualization::PCLVisualizer::Ptr viewer = viewPointCloud(cloud, "Original Point Cloud");
+    Eigen::Vector3f color0 (0,0,0);
+    // pcl::visualization::PCLVisualizer::Ptr viewer1 = viewPointCloud(cloud, "Original Point Cloud");
     // pcl::visualization::PCLVisualizer::Ptr viewer2 = viewPointCloud(voxelCloud, "Voxel Filter");
-    pcl::visualization::PCLVisualizer::Ptr viewer3 = viewPointCloud(cropBoxCloud, "Crop Box Filter");
-    pcl::visualization::PCLVisualizer::Ptr viewer4 = viewPointCloud(plane, "Plane");
-    pcl::visualization::PCLVisualizer::Ptr viewer5 = viewPointCloud(objects, "Objects");
-    pcl::visualization::PCLVisualizer::Ptr viewer6 = viewPointCloud(noiseFreeobjects, "Noise free Objects");
+    // pcl::visualization::PCLVisualizer::Ptr viewer3 = viewPointCloud(cropBoxCloud, "Crop Box Filter",color0);
+    // pcl::visualization::PCLVisualizer::Ptr viewer4 = viewPointCloud(plane, "Plane",color0);
+    // pcl::visualization::PCLVisualizer::Ptr viewer5 = viewPointCloud(objects, "Objects",color0);
+
+    Eigen::Vector3f color1(0,0,1);
+    pcl::visualization::PCLVisualizer::Ptr viewer = viewPointCloud(noiseFreeobjects, "Objects",color1);
 
     //Create bounding rectangles for clusters
-    createBoundingBoxes(clusters, viewer6);
+    createBoundingBoxes(clusters, viewer);
     //Set camera position
-    viewer6->setCameraPosition(-30,0,10, 0,0,0 ,0,0,1);
-
-    while (!viewer3->wasStopped())
+    viewer->setCameraPosition(-30, 0, 10, 0, 0, 0, 0, 0, 1);
+    Eigen::Vector3f color2(0,1,0);
+    addPointCloudToViewer(viewer,plane,"road",color2);
+   
+    while (!viewer->wasStopped())
     {
-        viewer3->spinOnce();
+        viewer->spinOnce();
     }
     cout << "\nDone visualizing\n\n";
 
