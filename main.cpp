@@ -98,7 +98,7 @@ pair<typename pcl::PointCloud<PointType>::Ptr, typename pcl::PointCloud<PointTyp
     seg.setInputCloud(cloud);              //input
     seg.setModelType(pcl::SACMODEL_PLANE); // Configure the object to look for a plane.
     seg.setMethodType(pcl::SAC_RANSAC);    // Use RANSAC method.
-    seg.setMaxIterations(10000);           //Maximum number of executions
+    seg.setMaxIterations(10000);  //10000   //Maximum number of executions
     seg.setDistanceThreshold(0.1);         // Distance information to be processed as inlier // Set the maximum allowed distance to the model.
     //seg.setRadiusLimits(0, 0.1);     // cylinder, Set minimum and maximum radii of the cylinder.
     seg.segment(*inliers, *coefficients);
@@ -142,7 +142,7 @@ vector<pcl::PointCloud<PointType>::Ptr> extractClusters(pcl::PointCloud<PointTyp
     pcl::EuclideanClusterExtraction<PointType> ec;
     ec.setClusterTolerance(0.8);
     ec.setMinClusterSize(30);
-    ec.setMaxClusterSize(125000);
+    ec.setMaxClusterSize(10000);
     ec.setSearchMethod(tree);
     ec.setInputCloud(cloud);
     ec.extract(cluster_indices);
@@ -183,7 +183,7 @@ void createBoundingBoxes(vector<pcl::PointCloud<PointType>::Ptr> clusters, pcl::
         PointType minPoint, maxPoint;
         pcl::getMinMax3D(*(clusters[i]), minPoint, maxPoint);
 
-        string id = "Cluster " + (i + 1);
+        string id = "Cluster " + to_string(i + 1);
 
         viewer->addCube(minPoint.x, maxPoint.x, minPoint.y, maxPoint.y, minPoint.z, maxPoint.z, 1.0, 0, 0, id);
         viewer->setShapeRenderingProperties(pcl::visualization::PCL_VISUALIZER_REPRESENTATION, pcl::visualization::PCL_VISUALIZER_REPRESENTATION_WIREFRAME, id);
@@ -194,8 +194,25 @@ void createBoundingBoxes(vector<pcl::PointCloud<PointType>::Ptr> clusters, pcl::
         viewer->setShapeRenderingProperties(pcl::visualization::PCL_VISUALIZER_REPRESENTATION, pcl::visualization::PCL_VISUALIZER_REPRESENTATION_SURFACE, idFill);
         //viewer->setShapeRenderingProperties(pcl::visualization::PCL_VISUALIZER_COLOR, 1.0, 0, 0, idFill);
         viewer->setShapeRenderingProperties(pcl::visualization::PCL_VISUALIZER_OPACITY, 0.3, idFill);
+        string idLine = "Line " + to_string(i + 1);
+        string idText = "Text " + to_string(i + 1);
+        pcl::PointXYZ origin;
+        origin.x = 0;
+        origin.y = 0;
+        origin.z = 0;
+        pcl::PointXYZ midPoint;
+        midPoint.x = (maxPoint.x + minPoint.x)/2;
+        midPoint.y = (maxPoint.y + minPoint.y)/2;;
+        midPoint.z = (maxPoint.z + minPoint.z)/2;;
+        double distance = sqrt(pow(midPoint.x,2) +pow(midPoint.y,2)+pow(midPoint.z,2) );
+        string dist = to_string(distance)+ " units";
+        
+        cout<<"Min point: "<<minPoint<<" Max point: "<<maxPoint<<endl;
+        cout<<"Adding line and text with ids: "<<idLine<<" "<<idText<<endl;
+        viewer->addLine(origin,midPoint,1,0.2,1,idLine);
+        viewer->addText3D(dist, midPoint,  0.7,0.2,1,1,idText);
     }
-
+     
     //return viewer;
 }
 
